@@ -13,7 +13,7 @@ from game2048 import Game2048Env # module with game logic for 2048
 
 from keras.models import Sequential, Model, load_model
 from keras.layers import Dense, Conv2D, Flatten, Input
-from keras.layers.merge import concatenate
+from keras.layers import Concatenate
 from keras.optimizers import Adam
 import keras.backend as K
 
@@ -29,14 +29,14 @@ from processors2048 import Log2NNInputProcessor, OneHotNNInputProcessor
 # SYSTEM PARAMETERS:
 
 # Set the filesystem path containing the project script/files:
-prj_path = '/Users/sergioiommi/Workspace/Eclipse/DQN_2048'
+prj_path = '/home/cosmin/Downloads/DQN-2048'
 data_filepath = prj_path + '/data' # set the path for the folder where to store the data (log files, CSVs, neural network trained weights, etc.) 
 if not os.path.exists(data_filepath): # check if the folder exists otherwise create it
     os.makedirs(data_filepath)
 
 # Decide to either train or test the Deep Q-Network:
-TRAIN_TEST_MODE = 'train'
-#TRAIN_TEST_MODE = 'test'
+# TRAIN_TEST_MODE = 'train'
+TRAIN_TEST_MODE = 'test'
 
 ######################################################################
 # MODEL HYPERPARMETERS:
@@ -248,7 +248,7 @@ except:
         conv_ab = Conv2D(filters=NUM_FILTERS_LAYER_2, kernel_size=FILTERS_SIZE_LAYER_2, strides=(1,2), padding='valid', activation=ACTIVATION_FTN_CNN)(conv_a)
         conv_ba = Conv2D(filters=NUM_FILTERS_LAYER_2, kernel_size=FILTERS_SIZE_LAYER_2, strides=(2,1), padding='valid', activation=ACTIVATION_FTN_CNN)(conv_b)
         conv_bb = Conv2D(filters=NUM_FILTERS_LAYER_2, kernel_size=FILTERS_SIZE_LAYER_2, strides=(1,2), padding='valid', activation=ACTIVATION_FTN_CNN)(conv_b)
-        merge = concatenate([Flatten()(x) for x in [conv_aa, conv_ab, conv_ba, conv_bb, conv_a, conv_b]])
+        merge = Concatenate([Flatten()(x) for x in [conv_aa, conv_ab, conv_ba, conv_bb, conv_a, conv_b]])
         _output = Dense(units=NUM_ACTIONS_OUTPUT_NN, activation='linear')(merge)
         model = Model(inputs=_input, outputs=_output)
         print(model.summary())
@@ -375,4 +375,4 @@ elif TRAIN_TEST_MODE == 'test':
     #        True: shows the evolution of each (episode of the) game
     #     verbose [= 0/1/2]:
     #        1: shows the result of each (episode of) game
-    dqn.test(env, nb_episodes=100, visualize=False, verbose=0, callbacks=_callbacks)
+    dqn.test(env, nb_episodes=10, visualize=False, verbose=0, callbacks=_callbacks)

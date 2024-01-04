@@ -113,7 +113,7 @@ class Game2048Env(gym.Env):
     def add_tile(self):
         """Add a tile with value 2 or 4 with different probabilities."""
         val = 0
-        if self.np_random.random_sample() > 0.8:
+        if self.np_random.random() > 0.8:
             val = 4
         else:
             val = 2
