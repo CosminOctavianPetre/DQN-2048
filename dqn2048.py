@@ -5,6 +5,10 @@
 ################################################################################
 
 import os, fnmatch, pickle
+import tensorflow as tf
+
+# Enable eager execution
+tf.compat.v1.enable_eager_execution()
 
 import numpy as np
 import random
@@ -29,7 +33,7 @@ from processors2048 import Log2NNInputProcessor, OneHotNNInputProcessor
 # SYSTEM PARAMETERS:
 
 # Set the filesystem path containing the project script/files:
-prj_path = '/home/cosmin/Downloads/DQN-2048'
+prj_path = '/media/cosmin/400eca5a-8ba8-4ce9-a16b-9bd30a6e6ec0/Storage/Masters/1st_Year/1st_Semester/Artificial_Intelligence_of_Biological_Inspiration/DQN-2048'
 data_filepath = prj_path + '/data' # set the path for the folder where to store the data (log files, CSVs, neural network trained weights, etc.) 
 if not os.path.exists(data_filepath): # check if the folder exists otherwise create it
     os.makedirs(data_filepath)
@@ -67,11 +71,13 @@ NUM_ONE_HOT_MAT = 16 # number of matrices to use for encoding each game-grid in 
 
 # Set the training hyperparameters:
 #BATCH_SIZE = 256 # neural network's batch size (number of examples in each batch) 
-NB_STEPS_TRAINING = int(5e6) # number of steps used for training the model
-NB_STEPS_ANNEALED = int(1e5) # number of steps used in LinearAnnealedPolicy()
+# NB_STEPS_TRAINING = 5_000_000 # number of steps used for training the model
+NB_STEPS_TRAINING = 5_000 # number of steps used for training the model
+NB_STEPS_ANNEALED = 100_000 # number of steps used in LinearAnnealedPolicy()
 NB_STEPS_WARMUP = 5000 # number of steps to fill memory before training
 MEMORY_SIZE = 6000 # used in SequentialMemory()
 TARGET_MODEL_UPDATE = 1000 # used in DQNAgent(); https://github.com/keras-rl/keras-rl/issues/55
+CHECKPOINT_INTERVAL = 10_000
 
 ######################################################################
 # ENVIRONMENT:
@@ -315,7 +321,7 @@ if TRAIN_TEST_MODE == 'train':
     csv_filepath = data_filepath + '/dqn_{}_{}_{}_train.csv'.format(ENV_NAME, MODEL_TYPE, PREPROC)
     # Callbacks: Stored with a list of Callbacks() functions
     # ModelIntervalCheckpoint is a callback used to save the NN weights every few steps.
-    _callbacks = [ModelIntervalCheckpoint(checkpoint_weights_filepath, interval=250000)]
+    _callbacks = [ModelIntervalCheckpoint(checkpoint_weights_filepath, interval=CHECKPOINT_INTERVAL)]
     # TrainEpisodeLogger2048 is a callback used to plot some charts, updated in real-time, that show the NN training results and to save the results in a CSV file.
     _callbacks += [TrainEpisodeLogger2048(csv_filepath)]
     # Training:
@@ -347,11 +353,11 @@ if TRAIN_TEST_MODE == 'train':
         model.save(model_filepath)  # creates a HDF5 file 'my_model.h5'
     else:
         # Save Keras-RL agent training memory
-        agentmem_filepath = data_filepath + '/dqn_{}_{}_{}_{}_agentmem.pkl'.format(ENV_NAME, MODEL_TYPE, PREPROC, NB_STEPS_TRAINING)
-        pickle.dump(memory, open(agentmem_filepath, "wb"), protocol=-1) # protocol=-1 means the the highest protocol version available will be used (binary, etc.)
-        # Save Keras-RL agent
-        agent_filepath = data_filepath + '/dqn_{}_{}_{}_{}_agent.pkl'.format(ENV_NAME, MODEL_TYPE, PREPROC, NB_STEPS_TRAINING)
-        pickle.dump(dqn, open(agent_filepath, "wb"), protocol=-1) # protocol=-1 means the the highest protocol version available will be used (binary, etc.)
+        # agentmem_filepath = data_filepath + '/dqn_{}_{}_{}_{}_agentmem.pkl'.format(ENV_NAME, MODEL_TYPE, PREPROC, NB_STEPS_TRAINING)
+        # pickle.dump(memory, open(agentmem_filepath, "wb"), protocol=-1) # protocol=-1 means the the highest protocol version available will be used (binary, etc.)
+        # # Save Keras-RL agent
+        # agent_filepath = data_filepath + '/dqn_{}_{}_{}_{}_agent.pkl'.format(ENV_NAME, MODEL_TYPE, PREPROC, NB_STEPS_TRAINING)
+        # pickle.dump(dqn, open(agent_filepath, "wb"), protocol=-1) # protocol=-1 means the the highest protocol version available will be used (binary, etc.)
         # Save Keras model
         model_filepath = data_filepath + '/dqn_{}_{}_{}_{}_model.h5'.format(ENV_NAME, MODEL_TYPE, PREPROC, NB_STEPS_TRAINING)
         model.save(model_filepath)  # creates a HDF5 file 'my_model.h5'
