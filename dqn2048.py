@@ -4,11 +4,11 @@
 # Author:      Sergio Iommi
 ################################################################################
 
-import os, fnmatch, pickle
-import tensorflow as tf
+import os, fnmatch, pickle, sys
+# import tensorflow as tf
 
-# Enable eager execution
-tf.compat.v1.enable_eager_execution()
+# # Enable eager execution
+# tf.compat.v1.enable_eager_execution()
 
 import numpy as np
 import random
@@ -48,9 +48,7 @@ TRAIN_TEST_MODE = 'test'
 # Set the DQN/Neural Network type and some hyperparameters (further ones can be specified later):
 
 # DQN/Neural Network type:
-MODEL_TYPE = 'dnn' # 3-layer dnn (deep neural network / multi-layer perceptron / feed-forward neural network / dense neural network)
-#MODEL_TYPE = 'cnn1' # convolutional neural network (vanilla)
-#MODEL_TYPE = 'cnn2' # convolutional neural network (with "orthogonal" strides)
+MODEL_TYPE = 'dnn' # 2-layer dnn (deep neural network / multi-layer perceptron / feed-forward neural network / dense neural network)
 
 # Input/output layers parameters:
 NUM_ACTIONS_OUTPUT_NN = 4 # number of agent's actions (corresponds to the number of neurons for the neural network's output layer)
@@ -71,13 +69,13 @@ NUM_ONE_HOT_MAT = 16 # number of matrices to use for encoding each game-grid in 
 
 # Set the training hyperparameters:
 #BATCH_SIZE = 256 # neural network's batch size (number of examples in each batch) 
-# NB_STEPS_TRAINING = 5_000_000 # number of steps used for training the model
-NB_STEPS_TRAINING = 5_000 # number of steps used for training the model
+NB_STEPS_TRAINING = 10_000_000 # number of steps used for training the model
+# NB_STEPS_TRAINING = 10_000 # number of steps used for training the model
 NB_STEPS_ANNEALED = 100_000 # number of steps used in LinearAnnealedPolicy()
 NB_STEPS_WARMUP = 5000 # number of steps to fill memory before training
 MEMORY_SIZE = 6000 # used in SequentialMemory()
 TARGET_MODEL_UPDATE = 1000 # used in DQNAgent(); https://github.com/keras-rl/keras-rl/issues/55
-CHECKPOINT_INTERVAL = 10_000
+CHECKPOINT_INTERVAL = 250_000
 
 ######################################################################
 # ENVIRONMENT:
@@ -109,6 +107,16 @@ env.seed(random_seed)
 #      cannot pickle lambda expressions like the ones used in Tensorflow (https://github.com/keras-team/keras/issues/8343,
 #      https://stackoverflow.com/questions/44855603/typeerror-cant-pickle-thread-lock-objects-in-seq2seq). 
 #      Solving this issue will probably require to modify the implementation of DQNAgent().
+
+if MODEL_TYPE=='dnn':
+    # Choose the pre-processing method and consequently the input shape for the NN
+    if PREPROC=="onehot2steps": # Data Pre-Processing
+        processor = OneHotNNInputProcessor(num_one_hot_matrices=NUM_ONE_HOT_MAT)
+        INPUT_SHAPE_DNN = (WINDOW_LENGTH, 4+4*4, NUM_ONE_HOT_MAT,) + INPUT_SHAPE # Ex. (1,20,16,4,4); 4+4*4 is the total number of grids in the next 2 steps (4 for the 1st step, 4*4 for the 2nd step)
+    elif PREPROC=="log2":
+        processor = Log2NNInputProcessor()
+        INPUT_SHAPE_DNN = (WINDOW_LENGTH*1,) + INPUT_SHAPE # Ex. (1,4,4); in WINDOW_LENGTH*1 the *1 is to underline that we give only 1 grid to the NN input 
+
 try:
     print("Loading Keras model to resume the training")
     # model_filename example: dqn_2048_dnn_onehot2steps_5000000_model.h5
@@ -132,9 +140,11 @@ except:
             INPUT_SHAPE_DNN = (WINDOW_LENGTH*1,) + INPUT_SHAPE # Ex. (1,4,4); in WINDOW_LENGTH*1 the *1 is to underline that we give only 1 grid to the NN input 
         
         # Set the DNN hyperparameters:
-        NUM_DENSE_NEURONS_DNN_L1 = 1024 # number of neurons in 1st layer 
-        NUM_DENSE_NEURONS_DNN_L2 = 512  # number of neurons in 2nd layer
-        NUM_DENSE_NEURONS_DNN_L3 = 256  # number of neurons in 3rd layer
+        # NUM_DENSE_NEURONS_DNN_L1 = 1024 # number of neurons in 1st layer 
+        # NUM_DENSE_NEURONS_DNN_L2 = 512  # number of neurons in 2nd layer
+        NUM_DENSE_NEURONS_DNN_L1 = 512 # number of neurons in 1st layer 
+        NUM_DENSE_NEURONS_DNN_L2 = 256  # number of neurons in 2nd layer
+        # NUM_DENSE_NEURONS_DNN_L3 = 256  # number of neurons in 3rd layer
         ACTIVATION_FTN_DNN = 'relu'
         ACTIVATION_FTN_DNN_OUTPUT = 'linear'
         
@@ -143,120 +153,8 @@ except:
         model.add(Flatten(input_shape=INPUT_SHAPE_DNN))
         model.add(Dense(units=NUM_DENSE_NEURONS_DNN_L1, activation=ACTIVATION_FTN_DNN))#, batch_size=BATCH_SIZE))
         model.add(Dense(units=NUM_DENSE_NEURONS_DNN_L2, activation=ACTIVATION_FTN_DNN))
-        model.add(Dense(units=NUM_DENSE_NEURONS_DNN_L3, activation=ACTIVATION_FTN_DNN))
+        # model.add(Dense(units=NUM_DENSE_NEURONS_DNN_L3, activation=ACTIVATION_FTN_DNN))
         model.add(Dense(units=NUM_ACTIONS_OUTPUT_NN, activation=ACTIVATION_FTN_DNN_OUTPUT))
-        print(model.summary())
-    elif MODEL_TYPE=='cnn1':
-        # Choose the pre-processing method and consequently the input shape for the NN
-        if PREPROC=="onehot2steps": # Data Pre-Processing
-            processor = OneHotNNInputProcessor(num_one_hot_matrices=NUM_ONE_HOT_MAT, window_length=WINDOW_LENGTH, model="cnn")
-            # CNN input_shape using the one-hot encoding:
-            #    - the 2D CNN input shape is always (channel size, dim1, dim2)
-            #    - (dim1, dim2) = (4, 4) size of the board-matrix
-            #    - (channel size) in the one-hot encoding is the number of all the matrices (made of 1s and 0s) that we need to give
-            #      as an input to the CNN, i.e.:
-            #        WINDOW_LENGTH*(4+4*4)*NUM_ONE_HOT_MAT = 1*(4+4*4)*16 = 320
-            #        where (4+4*4)=20 is the number of grids of the next 2 steps (4 for the 1st step + 4*4 for the 2nd step)
-            INPUT_SHAPE_CNN = (WINDOW_LENGTH*(4+4*4)*NUM_ONE_HOT_MAT,) + INPUT_SHAPE # Ex. (320,4,4)
-        elif PREPROC=="log2":
-            processor = Log2NNInputProcessor()
-            INPUT_SHAPE_CNN = (WINDOW_LENGTH*1,) + INPUT_SHAPE # in WINDOW_LENGTH*1 the *1 is to underline that we give only 1 grid to the NN input 
-        
-        # Tell to Keras the input_shape ordering used to pass the data to the CNN input.
-        #    This step is necessary to avoid any conflict with the backend (Tensorflow or Theano), given that each
-        #    one uses its own standard.
-        #    Theano is 'channels_first':    (channel, n, m)
-        #    Tensorflow is 'channels_last': (n, m, channels)
-        K.set_image_dim_ordering('th') # th: theano, tf: tensorflow
-        # Otherwise we can use the data_format parameter to be passed to the Conv2D() functions:
-        #    data_format = 'channels_first'
-        #    data_format = 'channels_last'     
-        
-        # Set the CNN hyperparameters:
-        # CNN Layers:
-        #NUM_FILTERS_LAYER_1 = 512
-        #NUM_FILTERS_LAYER_2 = 4096
-        NUM_FILTERS_LAYER_1 = 32 # number of filters in 1st layer
-        NUM_FILTERS_LAYER_2 = 64 # number of filters in 2nd layer
-        FILTERS_SIZE_LAYER_1 = 3 # Filter Size = 3 x 3
-        FILTERS_SIZE_LAYER_2 = 1 # Filter Size = 1 x 1
-        STRIDES_LAYER_1 = (2, 2)
-        STRIDES_LAYER_2 = (1, 1)
-        ACTIVATION_FTN_CNN = 'relu'
-        # Dense Layers:
-        NUM_DENSE_NEURONS = 512
-        ACTIVATION_FTN_DENSE = 'relu'
-        ACTIVATION_FTN_OUTPUT = 'linear'
-        
-        # CNN model definition:
-        model = Sequential()
-        model.add(Conv2D(filters=NUM_FILTERS_LAYER_1,
-                         kernel_size=FILTERS_SIZE_LAYER_1,
-                         strides=STRIDES_LAYER_1,
-                         padding='valid',
-                         activation=ACTIVATION_FTN_CNN,
-                         input_shape=INPUT_SHAPE_CNN)) #, data_format=data_format)) 
-        model.add(Conv2D(filters=NUM_FILTERS_LAYER_2,
-                         kernel_size=FILTERS_SIZE_LAYER_2,
-                         strides=STRIDES_LAYER_2,
-                         padding='valid',
-                         activation=ACTIVATION_FTN_CNN,
-                         input_shape=INPUT_SHAPE_CNN)) #, data_format=data_format))
-        model.add(Flatten())
-        model.add(Dense(units=NUM_DENSE_NEURONS, activation=ACTIVATION_FTN_DENSE))
-        model.add(Dense(units=NUM_ACTIONS_OUTPUT_NN, activation=ACTIVATION_FTN_OUTPUT))
-        print(model.summary())
-    elif MODEL_TYPE == 'cnn2': 
-        if PREPROC=="onehot2steps": # Data Pre-Processing
-            processor = OneHotNNInputProcessor(num_one_hot_matrices=NUM_ONE_HOT_MAT, window_length=WINDOW_LENGTH, model="cnn")
-            # CNN input_shape using the one-hot encoding:
-            #    - the 2D CNN input shape is always (channel size, dim1, dim2)
-            #    - (dim1, dim2) = (4, 4) size of the board-matrix
-            #    - (channel size) in the one-hot encoding is the number of all the matrices (made of 1s and 0s) that we need to give
-            #      as an input to the CNN, i.e.:
-            #        WINDOW_LENGTH*(4+4*4)*NUM_ONE_HOT_MAT = 1*(4+4*4)*16 = 320
-            #        where (4+4*4)=20 is the number of grids of the next 2 steps (4 for the 1st step + 4*4 for the 2nd step)
-            INPUT_SHAPE_CNN = (WINDOW_LENGTH*(4+4*4)*NUM_ONE_HOT_MAT,) + INPUT_SHAPE # Ex. (320,4,4)
-        elif PREPROC=="log2":
-            processor = Log2NNInputProcessor()
-            INPUT_SHAPE_CNN = (WINDOW_LENGTH*1,) + INPUT_SHAPE # in WINDOW_LENGTH*1 the *1 is to underline that we give only 1 grid to the NN input
-        
-        # Tell to Keras the input_shape ordering used to pass the data to the CNN input.
-        #    This step is necessary to avoid any conflict with the backend (Tensorflow or Theano), given that each
-        #    one uses its own standard.
-        #    Theano is 'channels_first':    (channel, n, m)
-        #    Tensorflow is 'channels_last': (n, m, channels)
-        K.set_image_dim_ordering('th') # th: theano, tf: tensorflow
-        # Otherwise we can use the data_format parameter to be passed to the Conv2D() functions:
-        #    data_format = 'channels_first'
-        #    data_format = 'channels_last'
-        
-        # Set the CNN hyperparameters:
-        # CNN Layers:
-        NUM_FILTERS_LAYER_1 = 512   # number of filters in 1st layer
-        NUM_FILTERS_LAYER_2 = 4096  # number of filters in 2nd layer
-        # NUM_FILTERS_LAYER_1 = 32
-        # NUM_FILTERS_LAYER_2 = 64
-        FILTERS_SIZE_LAYER_1 = 3 # Filter Size = 3 x 3
-        FILTERS_SIZE_LAYER_2 = 1 # Filter Size = 1 x 1
-        ACTIVATION_FTN_CNN = 'relu'
-        # Dense/Output Layers:
-        NUM_DENSE_NEURONS = 512
-        ACTIVATION_FTN_DENSE = 'relu'
-        ACTIVATION_FTN_OUTPUT = 'linear'
-          
-        # CNN model definition:
-        #    We use the Functional API of Keras (https://keras.io/getting-started/functional-api-guide/) 
-        _input = Input(shape=INPUT_SHAPE_CNN)
-        conv_a = Conv2D(filters=NUM_FILTERS_LAYER_1, kernel_size=FILTERS_SIZE_LAYER_1, strides=(2,1), padding='valid', activation=ACTIVATION_FTN_CNN)(_input)
-        conv_b = Conv2D(filters=NUM_FILTERS_LAYER_1, kernel_size=FILTERS_SIZE_LAYER_1, strides=(1,2), padding='valid', activation=ACTIVATION_FTN_CNN)(_input)
-        conv_aa = Conv2D(filters=NUM_FILTERS_LAYER_2, kernel_size=FILTERS_SIZE_LAYER_2, strides=(2,1), padding='valid', activation=ACTIVATION_FTN_CNN)(conv_a)
-        conv_ab = Conv2D(filters=NUM_FILTERS_LAYER_2, kernel_size=FILTERS_SIZE_LAYER_2, strides=(1,2), padding='valid', activation=ACTIVATION_FTN_CNN)(conv_a)
-        conv_ba = Conv2D(filters=NUM_FILTERS_LAYER_2, kernel_size=FILTERS_SIZE_LAYER_2, strides=(2,1), padding='valid', activation=ACTIVATION_FTN_CNN)(conv_b)
-        conv_bb = Conv2D(filters=NUM_FILTERS_LAYER_2, kernel_size=FILTERS_SIZE_LAYER_2, strides=(1,2), padding='valid', activation=ACTIVATION_FTN_CNN)(conv_b)
-        merge = Concatenate([Flatten()(x) for x in [conv_aa, conv_ab, conv_ba, conv_bb, conv_a, conv_b]])
-        _output = Dense(units=NUM_ACTIONS_OUTPUT_NN, activation='linear')(merge)
-        model = Model(inputs=_input, outputs=_output)
         print(model.summary())
 
 ######################################################################
@@ -267,18 +165,20 @@ except:
 #    In the following block we check if we can load the training memory (SequentialMemory) from previously stored training.
 #    This is useful in case we want to train the DQN agent in multiple occasions. Otherwise initialize SequentialMemory.
 #    Please, solve the issue previously mentioned: "ISSUE TO SOLVE - SAVING MODEL'S OPTIMIZER/TRAINING STATE" 
-try:
-    # Load Keras-RL agent training memory
-    print("Loading Keras-RL agent training memory")
-    # agentmem_filename example: dqn_2048_dnn_onehot2steps_5000000_agentmem.pkl
-    #    5000000 is the number of training steps already executed (stored in nb_training_steps_pickle with the next statement)
-    agentmem_filename = fnmatch.filter(os.listdir(data_filepath), 'dqn_{}_{}_{}_'.format(ENV_NAME, MODEL_TYPE, PREPROC) + '*_agentmem.pkl')[-1]
-    nb_training_steps_pickle = int(agentmem_filename.split("_")[4]) # nb_training_steps_pickle: stores the number of training steps from previously trained Keras model
-    NB_STEPS_TRAINING = NB_STEPS_TRAINING - nb_training_steps_pickle # We adjust the number of training steps considering that we have already trained the model with a number of training steps equal to nb_training_steps_pickle 
-    pickle_filepath = data_filepath + '/' + agentmem_filename 
-    (memory, memory.actions, memory.rewards, memory.terminals, memory.observations) = pickle.load( open(pickle_filepath, "rb")) # https://github.com/keras-rl/keras-rl/issues/186#issuecomment-385200010
-except:
-    memory = SequentialMemory(limit=MEMORY_SIZE, window_length=WINDOW_LENGTH)
+print("Loading Keras-RL agent training memory")
+memory = SequentialMemory(limit=MEMORY_SIZE, window_length=WINDOW_LENGTH)
+# try:
+#     # Load Keras-RL agent training memory
+#     print("Loading Keras-RL agent training memory")
+#     # agentmem_filename example: dqn_2048_dnn_onehot2steps_5000000_agentmem.pkl
+#     #    5000000 is the number of training steps already executed (stored in nb_training_steps_pickle with the next statement)
+#     agentmem_filename = fnmatch.filter(os.listdir(data_filepath), 'dqn_{}_{}_{}_'.format(ENV_NAME, MODEL_TYPE, PREPROC) + '*_agentmem.pkl')[-1]
+#     nb_training_steps_pickle = int(agentmem_filename.split("_")[4]) # nb_training_steps_pickle: stores the number of training steps from previously trained Keras model
+#     NB_STEPS_TRAINING = NB_STEPS_TRAINING - nb_training_steps_pickle # We adjust the number of training steps considering that we have already trained the model with a number of training steps equal to nb_training_steps_pickle 
+#     pickle_filepath = data_filepath + '/' + agentmem_filename 
+#     (memory, memory.actions, memory.rewards, memory.terminals, memory.observations) = pickle.load( open(pickle_filepath, "rb")) # https://github.com/keras-rl/keras-rl/issues/186#issuecomment-385200010
+# except:
+#     memory = SequentialMemory(limit=MEMORY_SIZE, window_length=WINDOW_LENGTH)
 
 # Policy:
 # train_policy vs test_policy (issues): https://github.com/keras-rl/keras-rl/issues/18
@@ -353,9 +253,9 @@ if TRAIN_TEST_MODE == 'train':
         model.save(model_filepath)  # creates a HDF5 file 'my_model.h5'
     else:
         # Save Keras-RL agent training memory
-        # agentmem_filepath = data_filepath + '/dqn_{}_{}_{}_{}_agentmem.pkl'.format(ENV_NAME, MODEL_TYPE, PREPROC, NB_STEPS_TRAINING)
-        # pickle.dump(memory, open(agentmem_filepath, "wb"), protocol=-1) # protocol=-1 means the the highest protocol version available will be used (binary, etc.)
-        # # Save Keras-RL agent
+        agentmem_filepath = data_filepath + '/dqn_{}_{}_{}_{}_agentmem.pkl'.format(ENV_NAME, MODEL_TYPE, PREPROC, NB_STEPS_TRAINING)
+        pickle.dump(memory, open(agentmem_filepath, "wb"), protocol=-1) # protocol=-1 means the the highest protocol version available will be used (binary, etc.)
+        # Save Keras-RL agent
         # agent_filepath = data_filepath + '/dqn_{}_{}_{}_{}_agent.pkl'.format(ENV_NAME, MODEL_TYPE, PREPROC, NB_STEPS_TRAINING)
         # pickle.dump(dqn, open(agent_filepath, "wb"), protocol=-1) # protocol=-1 means the the highest protocol version available will be used (binary, etc.)
         # Save Keras model
@@ -371,7 +271,9 @@ if TRAIN_TEST_MODE == 'train':
 
 elif TRAIN_TEST_MODE == 'test':
     # Load the weights previously estimated and saved in h5f files
-    weights_filepath = data_filepath + '/dqn_{}_{}_{}_weights.h5f'.format(ENV_NAME, MODEL_TYPE, PREPROC)
+    # weights_filepath = data_filepath + '/dqn_{}_{}_{}_weights.h5f'.format(ENV_NAME, MODEL_TYPE, PREPROC)
+    weights_filepath = sys.argv[1]
+    print(f"Loading model: {weights_filepath}")
     dqn.load_weights(weights_filepath)
     
     # TestLogger2048 is a callback used to show the game result (final grid and max tile) and other info at test time for each episode/match of the game.
@@ -381,4 +283,4 @@ elif TRAIN_TEST_MODE == 'test':
     #        True: shows the evolution of each (episode of the) game
     #     verbose [= 0/1/2]:
     #        1: shows the result of each (episode of) game
-    dqn.test(env, nb_episodes=10, visualize=False, verbose=0, callbacks=_callbacks)
+    dqn.test(env, nb_episodes=100, visualize=False, verbose=0, callbacks=_callbacks)

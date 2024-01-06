@@ -14,13 +14,6 @@ class TestLogger2048(TestLogger):
         """ TestLogger2048 is a callback function that prints the logs at end of each episode/game match """
         
         grid = self.env.get_board()
-        # template = 'episode: {episode}, max tile: {max_tile}, episode reward: {episode_reward:.3f}, episode steps: {nb_steps}'
-        # variables = {
-        #     'episode': episode + 1,
-        #     'max_tile': np.amax(grid),
-        #     'episode_reward': logs['episode_reward'],
-        #     'nb_steps': logs['nb_steps']
-        # }
         template = 'episode: {}, max tile: {}, episode reward: {:.3f}, episode steps: {}'
         variables = [episode + 1, np.amax(grid), logs['episode_reward'], logs['nb_steps']]
         print(template.format(*variables))
