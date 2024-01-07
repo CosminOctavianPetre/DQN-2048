@@ -142,9 +142,11 @@ except:
         # Set the DNN hyperparameters:
         # NUM_DENSE_NEURONS_DNN_L1 = 1024 # number of neurons in 1st layer 
         # NUM_DENSE_NEURONS_DNN_L2 = 512  # number of neurons in 2nd layer
+        # NUM_DENSE_NEURONS_DNN_L3 = 256  # number of neurons in 3rd layer
+
+        # My dnn
         NUM_DENSE_NEURONS_DNN_L1 = 512 # number of neurons in 1st layer 
         NUM_DENSE_NEURONS_DNN_L2 = 256  # number of neurons in 2nd layer
-        # NUM_DENSE_NEURONS_DNN_L3 = 256  # number of neurons in 3rd layer
         ACTIVATION_FTN_DNN = 'relu'
         ACTIVATION_FTN_DNN_OUTPUT = 'linear'
         
@@ -272,7 +274,9 @@ if TRAIN_TEST_MODE == 'train':
 elif TRAIN_TEST_MODE == 'test':
     # Load the weights previously estimated and saved in h5f files
     # weights_filepath = data_filepath + '/dqn_{}_{}_{}_weights.h5f'.format(ENV_NAME, MODEL_TYPE, PREPROC)
-    weights_filepath = sys.argv[1]
+    # csv_filepath = data_filepath + '/dqn_{}_{}_{}_test.csv'.format(ENV_NAME, MODEL_TYPE, PREPROC)
+    # weights_filepath = sys.argv[1]
+    weights_filepath = "/media/cosmin/400eca5a-8ba8-4ce9-a16b-9bd30a6e6ec0/Storage/Masters/1st_Year/1st_Semester/Artificial_Intelligence_of_Biological_Inspiration/DQN-2048/10M_steps_model/dqn_2048_dnn_onehot2steps_10000000_model.h5"
     print(f"Loading model: {weights_filepath}")
     dqn.load_weights(weights_filepath)
     
@@ -283,4 +287,5 @@ elif TRAIN_TEST_MODE == 'test':
     #        True: shows the evolution of each (episode of the) game
     #     verbose [= 0/1/2]:
     #        1: shows the result of each (episode of) game
-    dqn.test(env, nb_episodes=100, visualize=False, verbose=0, callbacks=_callbacks)
+    num_test_episodes = int(sys.argv[1])
+    dqn.test(env, nb_episodes=num_test_episodes, visualize=False, verbose=0, callbacks=_callbacks)

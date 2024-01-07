@@ -10,14 +10,31 @@ import matplotlib.pyplot as plt
 from rl.callbacks import Callback, TestLogger
     
 class TestLogger2048(TestLogger):
+    # def __init__(self, filePath):
+    #     # CSV file:
+    #     if exists(filePath):
+    #         self.csv_file = open(filePath, "a") # a = append
+    #         # self.csv_writer = csv.writer(csv_file, delimiter=',')
+    #     else:
+    #         self.csv_file = open(filePath, "w") # w = write (clear and restart)
+    #         self.csv_file.write('episode,max_tile,episode_reward,episode_steps')
+    #         # self.csv_writer = csv.writer(csv_file, delimiter=',')
+    #         # headers = ['episode', 'max_tile', 'episode_reward', 'episode_steps']
+    #         # self.csv_writer.writerow(headers)
+    
     def on_episode_end(self, episode, logs):
         """ TestLogger2048 is a callback function that prints the logs at end of each episode/game match """
         
         grid = self.env.get_board()
         template = 'episode: {}, max tile: {}, episode reward: {:.3f}, episode steps: {}'
         variables = [episode + 1, np.amax(grid), logs['episode_reward'], logs['nb_steps']]
-        print(template.format(*variables))
-        print("Final Grid: \n{0}\n".format(grid))
+        # print(template.format(*variables))
+        # print("Final Grid: \n{0}\n".format(grid))
+        # Save CSV:
+        vars = (episode + 1, np.amax(grid), logs['episode_reward'], logs['nb_steps'])
+        print("<TEST>: {},{},{:.0f},{}".format(*vars))
+        # self.csv_file.write(row)
+        # self.csv_writer.writerow((episode + 1, np.amax(grid), logs['episode_reward'], logs['nb_steps']))
 
 class TrainEpisodeLogger2048(Callback):
     """
